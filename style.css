@@ -503,3 +503,22 @@ footer p {
 .return-btn:hover {
     background: #bbf7d0;
 }
+
+/* Ownership verification helper text */
+.privacy-help {
+    display: block;
+    margin: 6px 0 14px;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* Show the complete uploaded photo without cropping */
+.item-card img {
+    display: block;
+    width: 100%;
+    height: 190px;
+    object-fit: contain;
+    object-position: center;
+    background: #edf0ff;
+}
