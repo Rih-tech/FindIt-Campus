@@ -104,6 +104,20 @@
             <label>Description</label>
             <textarea id="description" placeholder="Describe the item..." required></textarea>
 
+            <div id="secretDetailGroup" style="display:none;">
+                <label for="verificationQuestion">Ownership Verification Question</label>
+                <input type="text" id="verificationQuestion"
+                    placeholder="Example: What sticker is inside the wallet?"
+                    autocomplete="off">
+                <label for="secretDetail">Correct Answer (keep this secret)</label>
+                <input type="text" id="secretDetail"
+                    placeholder="Example: Red star sticker"
+                    autocomplete="off">
+                <small class="privacy-help">
+                    The question is shown to claimants. The correct answer stays hidden.
+                </small>
+            </div>
+
             <label>Location</label>
             <input type="text" id="location" placeholder="Example: College Library" required>
 
