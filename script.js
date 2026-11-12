@@ -9,7 +9,10 @@ let items = JSON.parse(localStorage.getItem("campusItems")) || [];
 
 let currentFilter = "all";
 
-// Support reports created before this update
+// Successful checks are unlocked only for this browser tab session.
+const verifiedOwnershipIds = new Set();
+
+// Support older reports
 items.forEach(item => {
     if (!item.status) {
         item.status = "active";
@@ -30,8 +33,46 @@ try {
 function openForm(type) {
     document.getElementById("type").value = type;
 
+    updateSecretDetailVisibility();
+
     document.getElementById("reportSection")
         .scrollIntoView({ behavior: "smooth" });
+}
+
+
+// ====================================
+// SECRET OWNERSHIP DETAIL
+// ====================================
+
+function updateSecretDetailVisibility() {
+    const type = document.getElementById("type").value;
+    const group = document.getElementById("secretDetailGroup");
+    const questionInput = document.getElementById("verificationQuestion");
+    const answerInput = document.getElementById("secretDetail");
+    const isLostReport = type === "lost";
+
+    if (!group || !answerInput || !questionInput) return;
+
+    group.style.display = isLostReport ? "block" : "none";
+    answerInput.required = isLostReport;
+    questionInput.required = isLostReport;
+
+    if (!isLostReport) {
+        answerInput.value = "";
+        questionInput.value = "";
+    }
+}
+
+document.getElementById("type")
+    .addEventListener("change", updateSecretDetailVisibility);
+
+updateSecretDetailVisibility();
+
+function normalizeSecret(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
 }
 
 
@@ -147,10 +188,21 @@ document.getElementById("itemForm")
         const date = document.getElementById("date").value;
         const contact = document.getElementById("contact").value.trim();
 
+        const secretInput = document.getElementById("secretDetail");
+        const questionInput = document.getElementById("verificationQuestion");
+        const secretDetail = secretInput ? secretInput.value.trim() : "";
+        const verificationQuestion = questionInput ? questionInput.value.trim() : "";
+
         const photoFile = document.getElementById("photo").files[0];
 
         if (!name || !description || !location || !date || !contact) {
             alert("Please fill in all required fields!");
+            return;
+        }
+
+        if (type === "lost" && (!verificationQuestion || !secretDetail)) {
+            alert("Please enter both a verification question and its correct answer.");
+            (questionInput && !verificationQuestion ? questionInput : secretInput).focus();
             return;
         }
 
@@ -176,6 +228,11 @@ document.getElementById("itemForm")
                 date: date,
                 contact: contact,
                 photo: photo,
+
+                // Prototype-only private detail
+                verificationQuestion: type === "lost" ? verificationQuestion : "",
+                secretDetail: type === "lost" ? normalizeSecret(secretDetail) : "",
+
                 status: "active",
                 createdAt: new Date().toISOString()
             };
@@ -202,6 +259,7 @@ document.getElementById("itemForm")
             alert("Your report has been saved successfully on this device!");
 
             this.reset();
+            updateSecretDetailVisibility();
 
             document.getElementById("items")
                 .scrollIntoView({ behavior: "smooth" });
@@ -300,21 +358,22 @@ function displayItems() {
 
                 ${item.status !== "returned"
             ? `
-                            <button class="primary-btn"
-                                onclick="contactPerson('${item.id}')">
-                                Contact
-                            </button>
+                        ${item.type === "lost"
+                ? (verifiedOwnershipIds.has(String(item.id))
+                    ? `<button class="primary-btn" onclick="contactPerson('${item.id}')">Contact Owner</button>`
+                    : `<button class="primary-btn" onclick="verifyOwnership('${item.id}')">Verify Ownership</button>`)
+                : `<button class="primary-btn" onclick="contactPerson('${item.id}')">Contact Finder</button>`}
 
-                            <button class="return-btn"
-                                onclick="markReturned('${item.id}')">
-                                Mark as Returned
-                            </button>
-                        `
+                        <button class="return-btn"
+                            onclick="markReturned('${item.id}')">
+                            Mark as Returned
+                        </button>
+                    `
             : `
-                            <span class="status found">
-                                SUCCESSFULLY RETURNED
-                            </span>
-                        `
+                        <span class="status found">
+                            SUCCESSFULLY RETURNED
+                        </span>
+                    `
         }
 
             </div>
@@ -380,6 +439,34 @@ function updateStats() {
 
 
 // ====================================
+// SECRET OWNERSHIP VERIFICATION
+// ====================================
+
+function verifyOwnership(id) {
+    const item = items.find(item => String(item.id) === String(id));
+    if (!item || item.type !== "lost") return;
+
+    if (!item.verificationQuestion || !item.secretDetail) {
+        alert("This older report does not have a verification question and answer. Contact is unavailable through this prototype.");
+        return;
+    }
+
+    const answer = prompt("OWNERSHIP VERIFICATION\n\n" + item.verificationQuestion);
+    if (answer === null) return;
+
+    if (normalizeSecret(answer) === item.secretDetail) {
+        verifiedOwnershipIds.add(String(item.id));
+        alert("Answer matched! Contact details are now unlocked in this browser session.");
+        displayItems();
+    } else {
+        verifiedOwnershipIds.delete(String(item.id));
+        alert("Incorrect answer. The owner's contact number remains hidden.");
+        displayItems();
+    }
+}
+
+
+// ====================================
 // CONTACT PERSON
 // ====================================
 
@@ -388,6 +475,11 @@ function contactPerson(id) {
     const item = items.find(item => item.id == id);
 
     if (!item) return;
+
+    if (item.type === "lost" && !verifiedOwnershipIds.has(String(item.id))) {
+        alert("Please complete ownership verification before contacting the owner.");
+        return;
+    }
 
     alert("Contact number: " + item.contact);
 }
@@ -441,8 +533,6 @@ function markReturned(id) {
 // ====================================
 // SMART MATCHING ENGINE
 // ====================================
-
-// Convert text into useful keywords
 
 function getWords(text) {
 
@@ -536,7 +626,6 @@ function findMatches() {
 
     results.innerHTML = "";
 
-    // Ignore returned items
     const lostReports = items.filter(
         item =>
             item.type === "lost" &&
@@ -654,8 +743,6 @@ function findMatches() {
 // ====================================
 // INITIAL LOADING
 // ====================================
-
-// Restore older reports that may not have a status field.
 
 items.forEach(item => {
     if (!item.status) {
